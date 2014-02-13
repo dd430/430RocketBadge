@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Program your Rocket Badge!</title>
+		<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+		<style>
+			body {
+				background-color:black; 
+				color:white;
+			}
+			.clockDiv,.dataDiv
+			{
+				width:250px;
+				height:200px;
+				border:solid white;
+			}
+			.clockDiv {
+				float:left;
+			}
+			.dataDiv {
+				float:left;
+			}
+			.dataContainer {
+				width:100%;
+                overflow:auto;
+			}
+			.whiteBack {
+				background-color:white;
+			}
+		    #btnTransmit
+		    {
+                width:100px;
+                height:100px;
+                margin-left:50px;
+		    }
+		    .circleDiv
+		    {
+                border-radius:50%;
+                width:25px;
+                height:25px;
+                margin-bottom:5px;
+		    }
+		    .redCircle
+		    {
+                background-color:red;
+		    }
+		    .greyCircle
+		    {
+                background-color:grey;
+		    }
+		    .message
+		    {
+                float:left;
+                margin-left:5px;
+                margin-bottom:20px;
+		    }
+		    .functionButtons
+		    {
+                margin-top:5px;
+                margin-bottom:5px;  
+		    }
+		</style>
+		<script type="text/javascript">
+			//var startString = "01010101111111110101010111111111";
+		    var startString = "0" + (0x5555FF).toString(2);
+		    var transmitString = "";
+			var transmitData = new Array(true,false,true,false,true,false,true,false,true,false,true,false,true,false,true,false,true,false,true,false,true,false,false,false);
+			var arrayIdx = 0;
+			var transmitting = 0;
+			var timeout = 100;
+			var displayString = "";
+			function runTransmit()
+			{
+			    toBinary(); 
+				if(transmitting == 0)
+				{
+					transmitting = 1;
+					arrayIdx = 0;
+					sendData();
+				}
+			}
+			
+			function sendData()
+			{
+			    if (arrayIdx < transmitString.length)
+				{
+					setTimeout("toggleClock()",timeout);
+					setTimeout("toggleClock()",timeout*2);
+					setTimeout("sendData()", (timeout*2));
+					if (transmitString[arrayIdx] == "1")
+						$('div.dataDiv').addClass('whiteBack');
+					else if (transmitString[arrayIdx] == "0")
+						$('div.dataDiv').removeClass('whiteBack');
+				}
+				else
+				{
+					transmitting = 0;
+					$('div.dataDiv').removeClass('whiteBack');
+				}
+				
+				arrayIdx++;
+				
+			}
+			
+			function toggleClock()
+			{
+				$('div.clockDiv').toggleClass('whiteBack');
+			}
+
+
+			$(document).ready(function () {
+			    setCircleClick();
+			});
+			function setCircleClick() {
+			    $('circleDiv').unbind("click");
+			    $('.circleDiv').click(
+                    function () { $(this).toggleClass('greyCircle').toggleClass('redCircle'); }
+
+                    );
+			}
+			function addLine() {
+			    var newLine = $('.message').first().clone().appendTo('#MessageDiv');
+			    $(newLine).children('div.circleDiv').removeClass('redCircle').addClass('greyCircle');
+			    $(newLine).children('div.circleDiv').click(
+                    function () { $(this).toggleClass('greyCircle').toggleClass('redCircle');}
+
+                    );
+			    //setCircleClick();
+			}
+			function removeLine( control)
+			{
+			    if($('#MessageDiv').children().length > 1)
+			    {
+			        $(control).parent().remove();
+			    }
+			}
+			function toBinary() {
+			    displayString = " ";
+			    $('div.message').each(
+                    function () {
+                        var circles = $(this).children('div.circleDiv');
+                        for(var i = 0;i < circles.length; i++)
+                        {
+                            if ($(circles[i]).hasClass('greyCircle'))
+                                displayString += "0";
+                            else
+                                displayString += "1";
+                        }
+                        displayString += "000 ";//only 5 bits on display - transmitting bytes
+                    }
+                    
+                );
+			    //alert(displayString);
+			    //alert(startString + displayString);
+			    transmitString = startString + displayString;
+			}
+		</script>
+	</head>
+	<body>
+		<h1>Build your message:</h1>
+        <div id="MessageDiv">
+            <div class="message">
+                <div class="circleDiv greyCircle" ></div>
+                <div class="circleDiv greyCircle" ></div>
+                <div class="circleDiv greyCircle" ></div>
+                <div class="circleDiv greyCircle" ></div>
+                <div class="circleDiv greyCircle" ></div>
+                <h2 class="functionButtons" onclick="addLine();">+</h2>
+                <h2 class="functionButtons" onclick="removeLine(this);">-</h2>
+            </div>
+        </div>
+				<input type="button" id="btnTest" onclick="javascript: toBinary();" value="Test"/>
+        
+		<br/><br/><br/>
+		<div class="dataContainer">
+			<div class="dataContainer2">
+				<div class="dataDiv">Data</div><div class="clockDiv">Clock</div>
+				<input type="button" id="btnTransmit" onclick="javascript: runTransmit();" value="Transmit"/>
+			</div>
+
+		</div>
+                    <div>
+                
+            </div>
+		<div></div>
+		
+	</body>
+</html>
