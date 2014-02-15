@@ -3,6 +3,7 @@
 /*
  * main.c
  */
+
 int main(void) {
     WDTCTL = WDTPW | WDTHOLD;	// Stop watchdog timer
 
@@ -31,82 +32,21 @@ int main(void) {
     P2SEL2 &= ~(BIT6|BIT7);
 	P2SEL &= ~(BIT6|BIT7);
 
-	//configure pins for SPI
-	P1SEL2 = BIT5 | BIT7;
-	P1SEL = BIT5 | BIT7;
-
-	//Initialize USCI B for SPI
-	UCB0CTL1 |= UCSWRST;
-	UCB0CTL0 =  UCMST | UCMODE_0 | UCSYNC |UCCKPH|UCCKPL;
-	UCB0CTL1 = UCSSEL_2 | UCSWRST;
-	UCB0BR0 = 1;
-	UCB0CTL1 &= ~UCSWRST;
+	ConfigureSPI();
 
 	write(0x7);
 	_delay_cycles(1000000);
 	write(BIT2);
 	_delay_cycles(1000000);
 
-	CCTL0 = CCIE;                             // CCR0 interrupt enabled
-	CCR0 = 5000;
-	TACTL = TASSEL_2 + MC_1;                  // SMCLK, upmode
-
-	ADC10CTL0 &= ~ENC;
-
-	    /*
-	     * Control Register 0
-	     *
-	     * ~ADC10SC -- No conversion
-	     * ~ENC -- Disable ADC
-	     * ~ADC10IFG -- Clear ADC interrupt flag
-	     * ~ADC10IE -- Disable ADC interrupt
-	     * ADC10ON -- Switch On ADC10
-	     * REFON -- Enable ADC reference generator
-	     * REF2_5V -- Set reference voltage generator = 2.5V
-	     * ~MSC -- Disable multiple sample and conversion
-	     * ~REFBURST -- Reference buffer on continuously
-	     * ~REFOUT -- Reference output off
-	     * ~ADC10SR -- Reference buffer supports up to ~200 ksps
-	     * ADC10SHT_1 -- 8 x ADC10CLKs
-	     * SREF_1 -- VR+ = VREF+ and VR- = VSS
-	     *
-	     * Note: ~<BIT> indicates that <BIT> has value zero
-	     */
-	    ADC10CTL0 = ADC10ON | REFON | ADC10SHT_3 | SREF_0;
-
-	    /*
-	     * Control Register 1
-	     *
-	     * ~ADC10BUSY -- No operation is active
-	     * CONSEQ_2 -- Repeat single channel
-	     * ADC10SSEL_0 -- ADC10OSC
-	     * ADC10DIV_0 -- Divide by 1
-	     * ~ISSH -- Input signal not inverted
-	     * ~ADC10DF -- ADC10 Data Format as binary
-	     * SHS_0 -- ADC10SC
-	     * INCH_1 -- ADC Channel 1
-	     *
-	     * Note: ~<BIT> indicates that <BIT> has value zero
-	     */
-	    ADC10CTL1 = CONSEQ_0 | ADC10SSEL_0 | ADC10DIV_0 | SHS_0 | INCH_0;
-
-	    /* Analog (Input) Enable Control Register 0 */
-	    ADC10AE0 = BIT0;
-
-
-	    /* Software delay for REFON to settle */
-	    __delay_cycles(30000);
-
-	    /* enable ADC10 */
-	    ADC10CTL0 |= ENC;
+	StartLightSensor();
 
 	while(1)
 	{
 		_BIS_SR(LPM0_bits + GIE);
 	}
 
-    /* POWER: Turn ADC and reference voltage off to conserve power */
-    ADC10CTL0 &= ~(ADC10ON | REFON);
+
 }
 
 void switchSensor(char sensorNeeded)
@@ -136,6 +76,12 @@ void readSensor()
 	static char clockLow = 0;
 	static char dataLow = 0;
 	static int readsSinceChange=0;
+
+
+
+	static char msgIndex = 0;
+
+
 	//static int readSCOverflow=0;
 	char ReadVal = 0x0;
 
@@ -184,14 +130,60 @@ void readSensor()
 		if(currentIndex > 7)
 		{
 			currentIndex = 0; //start next value
-			sensorData[sensorDataIndex] = currentVal;
+//			if(msgLen > 0)
+//				sensorData[sensorDataIndex] = currentVal& 0xF8; //only take the first 5 - we're only transmitting POV data
+//			else
+				sensorData[sensorDataIndex] = currentVal;
 			sensorReads[sensorDataIndex] = readsSinceChange;
 			readsSinceChange= 0;
-			sensorDataIndex++;
-			if(sensorDataIndex > 19)
-				sensorDataIndex = 0;
-			currentVal = 0;
+
+
+			if(sensorDataIndex == 3 && msgLen == 0)  //first time through, we have the full initialization sequence
+			{
+				if(sensorData[0] == 0xAA && sensorData[1] == 0xFF)
+				{
+					//which message we're storing
+					msgIndex = sensorData[2];
+					//length of message being transmitted
+					//TODO: need a temp storage place in flash for incomplete messages - otherwise we'd be using 1/2 our ram for temporary message storage
+					msgLen = sensorData[3];
+					sensorDataIndex = 0;
+					currentVal = 0;
+				}
+				else
+				{
+					//error in transmission - indicate error
+					write(0xFF);
+					_delay_cycles(1000000);
+					write(0x00);
+					_delay_cycles(1000000);
+					write(0xFF);
+					LPM4; //turn off MCU
+				}
+			}
+			else if(msgLen > 0 && sensorDataIndex == msgLen) //reached anticipated message length
+			{
+				if(sensorData[sensorDataIndex] == 0xAA) //last bit is stop
+				{
+					//Yeah!  We've got a full message
+					write(BIT0);
+					_delay_cycles(1000000);
+					StartPOV();
+				}
+				else //oops - transmission problem
+					LPM4;
+			}
+			else
+			{
+				sensorDataIndex++;
+				dataLow = 1;
+				if(sensorDataIndex > 19)
+					sensorDataIndex = 0;
+				currentVal = 0;
+			}
+
 		}
+
 	}
 	write((~dataLow&BIT0) << 1|(~clockLow&BIT0)); //output to shift register for visual indicator
 
@@ -218,6 +210,105 @@ void readSensor()
 //	}
 }
 
+void StartLightSensor()
+{
+	CCTL0 = CCIE;                             // CCR0 interrupt enabled
+	CCR0 = 5000;
+	TACTL = TASSEL_2 + MC_1;                  // SMCLK, upmode
+
+	ADC10CTL0 &= ~ENC;
+
+	/*
+	 * Control Register 0
+	 *
+	 * ~ADC10SC -- No conversion
+	 * ~ENC -- Disable ADC
+	 * ~ADC10IFG -- Clear ADC interrupt flag
+	 * ~ADC10IE -- Disable ADC interrupt
+	 * ADC10ON -- Switch On ADC10
+	 * REFON -- Enable ADC reference generator
+	 * REF2_5V -- Set reference voltage generator = 2.5V
+	 * ~MSC -- Disable multiple sample and conversion
+	 * ~REFBURST -- Reference buffer on continuously
+	 * ~REFOUT -- Reference output off
+	 * ~ADC10SR -- Reference buffer supports up to ~200 ksps
+	 * ADC10SHT_1 -- 8 x ADC10CLKs
+	 * SREF_1 -- VR+ = VREF+ and VR- = VSS
+	 *
+	 * Note: ~<BIT> indicates that <BIT> has value zero
+	 */
+	ADC10CTL0 = ADC10ON | REFON | ADC10SHT_3 | SREF_0;
+
+	/*
+	 * Control Register 1
+	 *
+	 * ~ADC10BUSY -- No operation is active
+	 * CONSEQ_2 -- Repeat single channel
+	 * ADC10SSEL_0 -- ADC10OSC
+	 * ADC10DIV_0 -- Divide by 1
+	 * ~ISSH -- Input signal not inverted
+	 * ~ADC10DF -- ADC10 Data Format as binary
+	 * SHS_0 -- ADC10SC
+	 * INCH_1 -- ADC Channel 1
+	 *
+	 * Note: ~<BIT> indicates that <BIT> has value zero
+	 */
+	ADC10CTL1 = CONSEQ_0 | ADC10SSEL_0 | ADC10DIV_0 | SHS_0 | INCH_0;
+
+	/* Analog (Input) Enable Control Register 0 */
+	ADC10AE0 = BIT0;
+
+
+	/* Software delay for REFON to settle */
+	__delay_cycles(30000);
+
+	/* enable ADC10 */
+	ADC10CTL0 |= ENC;
+
+	mode = 0;
+}
+
+void DisableLightSensor()
+{
+    /* POWER: Turn ADC and reference voltage off to conserve power */
+    ADC10CTL0 &= ~(ADC10ON | REFON);
+}
+
+void ConfigureSPI()
+{
+	//configure pins for SPI
+	P1SEL2 = BIT5 | BIT7;
+	P1SEL = BIT5 | BIT7;
+
+	//Initialize USCI B for SPI
+	UCB0CTL1 |= UCSWRST;
+	UCB0CTL0 =  UCMST | UCMODE_0 | UCSYNC |UCCKPH|UCCKPL;
+	UCB0CTL1 = UCSSEL_2 | UCSWRST;
+	UCB0BR0 = 1;
+	UCB0CTL1 &= ~UCSWRST;
+}
+void StartPOV()
+{
+	CCR0 = 2000;
+	mode = 1;
+}
+
+void NextPOV()
+{
+	static char msgIndex = 0;
+	P2OUT &= ~BIT6;
+	//_delay_cycles(10);
+	write(sensorData[msgIndex]&0xF8);
+	//_delay_cycles(10);
+
+	//_delay_cycles(1);
+	P2OUT |= BIT6;
+
+	msgIndex++;
+	if (msgIndex >= msgLen)
+		msgIndex = 0;
+}
+
 void write(char data) {
 	P2OUT &= ~BIT6;
 	while (!(IFG2 & UCB0TXIFG))
@@ -231,6 +322,8 @@ void write(char data) {
 #pragma vector=TIMER0_A0_VECTOR
 __interrupt void TIMER0_A0_ISR_HOOK(void)
 {
-	 //ADC10CTL0 |= ENC + ADC10SC;             // Sampling and conversion start
-	readSensor();
+	 if(mode == 0)
+		 readSensor();
+	 else
+		 NextPOV();
 }
