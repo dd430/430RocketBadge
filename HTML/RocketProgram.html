@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<title>Program your Rocket Badge!</title>
-		<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+		<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
 		<style>
 			body {
 				background-color:black; 
@@ -13,14 +13,10 @@
 				width:250px;
 				height:200px;
 				border:solid white;
+                float:left;
 			}
-			.clockDiv {
-				float:left;
-			}
-			.dataDiv {
-				float:left;
-			}
-			.dataContainer {
+
+			.dataContainer, .fontContainer {
 				width:100%;
                 overflow:auto;
 			}
@@ -62,12 +58,19 @@
 		</style>
 		<script type="text/javascript">
 			//var startString = "01010101111111110101010111111111";
-		    var startString = "0" + (0x5555FF).toString(2);
+		    var startString = (0xAAFF).toString(2); //have to pad with a dummy start value for some reason - need to iron that out in code?
+			var endString = 0xAA;
 		    var transmitString = "";
-			var transmitData = new Array(true,false,true,false,true,false,true,false,true,false,true,false,true,false,true,false,true,false,true,false,true,false,false,false);
+		    var transmitData = new Array(true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, false, false);
+		    //Font based on http://www.dafont.com/5x5-pixel.font
+			//letters only, need to add digits
+			var fontData = new Array("F8A0A0A0F8","F8A8A8A870","F888888888","F888888870","F8A8A8A888","F8A0A0A080","F888A8A8B8","F8202020F8","8888F88888","9888F880","F8205088","F8080808",
+                                        "F8402040F8","F8402010F8","F8888888F8","F8A0A0A0E0","F8888898F8","F8A0A0B0E8","E8A8A8A8B8","8080F88080","F8080808F8","C0300830C0","F8081008F8",
+                                        "8850205088", "8040384080", "8898A8C888");
+			
 			var arrayIdx = 0;
 			var transmitting = 0;
-			var timeout = 100;
+			var timeout = 50;
 			var displayString = "";
 			function runTransmit()
 			{
@@ -86,7 +89,7 @@
 				{
 					setTimeout("toggleClock()",timeout);
 					setTimeout("toggleClock()",timeout*2);
-					setTimeout("sendData()", (timeout*2));
+					setTimeout("sendData()", ((timeout*2)+5));
 					if (transmitString[arrayIdx] == "1")
 						$('div.dataDiv').addClass('whiteBack');
 					else if (transmitString[arrayIdx] == "0")
@@ -118,8 +121,9 @@
 
                     );
 			}
-			function addLine() {
-			    var newLine = $('.message').first().clone().appendTo('#MessageDiv');
+			function addLine(control) {
+			    var newLine = $('.message').first().clone();//.appendTo('#MessageDiv');
+			    $(control).parent().after(newLine);
 			    $(newLine).children('div.circleDiv').removeClass('redCircle').addClass('greyCircle');
 			    $(newLine).children('div.circleDiv').click(
                     function () { $(this).toggleClass('greyCircle').toggleClass('redCircle');}
@@ -135,7 +139,7 @@
 			    }
 			}
 			function toBinary() {
-			    displayString = " ";
+			    displayString = "";
 			    $('div.message').each(
                     function () {
                         var circles = $(this).children('div.circleDiv');
@@ -146,18 +150,36 @@
                             else
                                 displayString += "1";
                         }
-                        displayString += "000 ";//only 5 bits on display - transmitting bytes
+                        displayString += "000";//only 5 bits on display - transmitting bytes
                     }
                     
                 );
-			    //alert(displayString);
-			    //alert(startString + displayString);
-			    transmitString = startString + displayString;
+			    
+			    var lenString = $('div.message').length.toString(2);
+			    while (lenString.length < 8)
+			        lenString = "0" + lenString; //zero-pad to two bytes
+			    var msgIndex = parseInt($('#MsgIndex').val()).toString(2);
+			    while (msgIndex.length < 8)
+			        msgIndex = "0" + msgIndex;
+			    //alert(msgIndex);
+				//Transmission format - 8 alternating on,off, 8 on, memory index (picking a storage location), length of the message, actual message, 8 alternating on/off
+				//Format will be used to determine actual beginning of a transmission as well as a valid transmission.  Might need a checksum as well...
+			    transmitString = startString + msgIndex + lenString + displayString + endString.toString(2);
+			    //transmitString = displayString;
+
+			    $("#TransmitOutput").val(transmitString);
 			}
 		</script>
 	</head>
 	<body>
 		<h1>Build your message:</h1>
+        <h2>Message Index: 
+            <select id="MsgIndex">
+                <option>1</option>
+                <option>2</option>
+                <option>3</option>
+                <option>4</option>
+            </select></h2>
         <div id="MessageDiv">
             <div class="message">
                 <div class="circleDiv greyCircle" ></div>
@@ -165,24 +187,24 @@
                 <div class="circleDiv greyCircle" ></div>
                 <div class="circleDiv greyCircle" ></div>
                 <div class="circleDiv greyCircle" ></div>
-                <h2 class="functionButtons" onclick="addLine();">+</h2>
+                <h2 class="functionButtons" onclick="addLine(this);">+></h2>
                 <h2 class="functionButtons" onclick="removeLine(this);">-</h2>
             </div>
         </div>
-				<input type="button" id="btnTest" onclick="javascript: toBinary();" value="Test"/>
-        
 		<br/><br/><br/>
-		<div class="dataContainer">
-			<div class="dataContainer2">
-				<div class="dataDiv">Data</div><div class="clockDiv">Clock</div>
-				<input type="button" id="btnTransmit" onclick="javascript: runTransmit();" value="Transmit"/>
-			</div>
+        <div class="fontContainer">
+            <div class="fontRow"></div>
 
-		</div>
-                    <div>
-                
+        </div>
+        <div class="dataContainer">
+            <div class="dataContainer2">
+                <div class="dataDiv">Data</div>
+                <div class="clockDiv">Clock</div>
+                <input type="button" id="btnTransmit" onclick="javascript: runTransmit();" value="Transmit" />
             </div>
-		<div></div>
-		
+        </div>
+        <div><br /><br /><input type="button" id="btnTest" onclick="javascript: toBinary();" value="Test" />
+            <textarea type="textarea" id="TransmitOutput" rows="5" >output shows here</textarea>
+        </div>		
 	</body>
 </html>
