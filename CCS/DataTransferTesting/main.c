@@ -130,10 +130,7 @@ void readSensor()
 		if(currentIndex > 7)
 		{
 			currentIndex = 0; //start next value
-//			if(msgLen > 0)
-//				sensorData[sensorDataIndex] = currentVal& 0xF8; //only take the first 5 - we're only transmitting POV data
-//			else
-				sensorData[sensorDataIndex] = currentVal;
+			sensorData[sensorDataIndex] = currentVal;
 			sensorReads[sensorDataIndex] = readsSinceChange;
 			readsSinceChange= 0;
 
@@ -149,6 +146,7 @@ void readSensor()
 					msgLen = sensorData[3];
 					sensorDataIndex = 0;
 					currentVal = 0;
+					WriteFlash(5, 0, msgLen);
 				}
 				else
 				{
@@ -168,6 +166,7 @@ void readSensor()
 					//Yeah!  We've got a full message
 					write(BIT0);
 					_delay_cycles(1000000);
+					CopyFlashFromTmp(msgIndex, msgLen+1); //length + 1 to grab the message length as well
 					StartPOV();
 				}
 				else //oops - transmission problem
@@ -180,6 +179,10 @@ void readSensor()
 				if(sensorDataIndex > 19)
 					sensorDataIndex = 0;
 				currentVal = 0;
+			}
+			if(msgLen > 0)
+			{
+				WriteFlash(5, sensorDataIndex+1, currentVal); //write to temp location
 			}
 
 		}
@@ -213,7 +216,7 @@ void readSensor()
 void StartLightSensor()
 {
 	CCTL0 = CCIE;                             // CCR0 interrupt enabled
-	CCR0 = 5000;
+	CCR0 = 2000;
 	TACTL = TASSEL_2 + MC_1;                  // SMCLK, upmode
 
 	ADC10CTL0 &= ~ENC;
@@ -317,6 +320,59 @@ void write(char data) {
 	while (!(IFG2 & UCB0TXIFG))
 	          ;
 	P2OUT |= BIT6;
+}
+
+void WriteFlash(char MsgIndex, char ValIndex, char Value)
+{
+	char *Flash_ptr;                          // Flash pointer
+	if(MsgIndex == 1)
+		Flash_ptr = (char *) (START0+ValIndex);              // Initialize Flash pointer
+	else if(MsgIndex == 2)
+		Flash_ptr = (char *) (START1+ValIndex);              // Initialize Flash pointer
+	else if (MsgIndex == 3)
+		Flash_ptr = (char *) (START2+ValIndex);              // Initialize Flash pointer
+	else if (MsgIndex == 4)
+		Flash_ptr = (char *) (START3+ValIndex);              // Initialize Flash pointer
+	else if (MsgIndex == 5)
+		Flash_ptr = (char *) (STARTTMP+ValIndex);              // Initialize Flash pointer
+
+	FCTL1 = FWKEY + WRT;                      // Set WRT bit for write operation
+	FCTL3 = FWKEY;                            // Clear Lock bit
+
+	*Flash_ptr = Value;
+
+	FCTL1 = FWKEY;                            // Clear WRT bit
+	FCTL3 = FWKEY + LOCK;                     // Set LOCK bit
+}
+
+void CopyFlashFromTmp(char MsgIndex, char Len)
+{
+	char *Flash_ptr;                          // Flash pointer
+	char *Flash_ptr_tmp = (char *) STARTTMP;
+
+	if(MsgIndex == 1)
+		Flash_ptr = (char *) START0;              // Initialize Flash pointer
+	else if(MsgIndex == 2)
+		Flash_ptr = (char *) START1;              // Initialize Flash pointer
+	else if (MsgIndex == 3)
+		Flash_ptr = (char *) START2;              // Initialize Flash pointer
+	else if (MsgIndex == 4)
+		Flash_ptr = (char *) START3;              // Initialize Flash pointer
+
+	FCTL1 = FWKEY + WRT;                      // Set WRT bit for write operation
+	FCTL3 = FWKEY;                            // Clear Lock bit
+
+	char i;
+
+	for(i = 0;i<Len;i++)
+	{
+		*Flash_ptr++ = *Flash_ptr_tmp++;//copy from temporary flash memory
+	}
+
+
+
+	FCTL1 = FWKEY;                            // Clear WRT bit
+	FCTL3 = FWKEY + LOCK;                     // Set LOCK bit
 }
 
 #pragma vector=TIMER0_A0_VECTOR
