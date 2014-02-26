@@ -130,11 +130,15 @@ void readSensor()
 		if(currentIndex > 7)
 		{
 			currentIndex = 0; //start next value
-			sensorData[sensorDataIndex] = currentVal;
+			if(msgLen == 0)
+				sensorData[sensorDataIndex] = currentVal;
 			sensorReads[sensorDataIndex] = readsSinceChange;
 			readsSinceChange= 0;
 
-
+			if(msgLen > 0)
+			{
+				WriteFlash(5, sensorDataIndex+1, currentVal); //write to temp location
+			}
 			if(sensorDataIndex == 3 && msgLen == 0)  //first time through, we have the full initialization sequence
 			{
 				if(sensorData[0] == 0xAA && sensorData[1] == 0xFF)
@@ -161,12 +165,14 @@ void readSensor()
 			}
 			else if(msgLen > 0 && sensorDataIndex == msgLen) //reached anticipated message length
 			{
-				if(sensorData[sensorDataIndex] == 0xAA) //last bit is stop
+				if(currentVal == 0xAA) //last bit is stop
 				{
 					//Yeah!  We've got a full message
 					write(BIT0);
 					_delay_cycles(1000000);
 					CopyFlashFromTmp(msgIndex, msgLen+1); //length + 1 to grab the message length as well
+
+					SelectedPOVMessage = msgIndex-1;
 					StartPOV();
 				}
 				else //oops - transmission problem
@@ -176,14 +182,11 @@ void readSensor()
 			{
 				sensorDataIndex++;
 				dataLow = 1;
-				if(sensorDataIndex > 19)
-					sensorDataIndex = 0;
+				//if(sensorDataIndex > 19)
+				//	sensorDataIndex = 0;
 				currentVal = 0;
 			}
-			if(msgLen > 0)
-			{
-				WriteFlash(5, sensorDataIndex+1, currentVal); //write to temp location
-			}
+
 
 		}
 
@@ -292,24 +295,54 @@ void ConfigureSPI()
 }
 void StartPOV()
 {
+	if(SelectedPOVMessage == 0)
+	{
+		POV_Flash_ptr = (char *) (START0);
+		POVStart = START0; //store start position
+	}
+	else if(SelectedPOVMessage == 1)
+	{
+		POV_Flash_ptr = (char *) (START1);
+		POVStart = START1; //store start position
+	}
+	else if(SelectedPOVMessage == 2)
+	{
+		POV_Flash_ptr = (char *) (START2);
+		POVStart = START2; //store start position
+	}
+	else if(SelectedPOVMessage == 3)
+	{
+		POV_Flash_ptr = (char *) (START3);
+		POVStart = START3; //store start position
+	}
+
+	POVLen = *POV_Flash_ptr;
+
+	*POV_Flash_ptr++; //move to the first item in the list
+	POVCurIndex = 0;
 	CCR0 = 2000;
 	mode = 1;
 }
 
 void NextPOV()
 {
-	static char msgIndex = 0;
 	P2OUT &= ~BIT6;
 	//_delay_cycles(10);
-	write(sensorData[msgIndex]&0xF8);
+	write(*POV_Flash_ptr);
+
 	//_delay_cycles(10);
 
 	//_delay_cycles(1);
 	P2OUT |= BIT6;
 
-	msgIndex++;
-	if (msgIndex >= msgLen)
-		msgIndex = 0;
+	POVCurIndex++;
+	POV_Flash_ptr++;
+
+	if(POVCurIndex >= POVLen)
+	{
+		POV_Flash_ptr = (char *)(POVStart+1);
+		POVCurIndex = 0;
+	}
 }
 
 void write(char data) {
@@ -336,8 +369,10 @@ void WriteFlash(char MsgIndex, char ValIndex, char Value)
 	else if (MsgIndex == 5)
 		Flash_ptr = (char *) (STARTTMP+ValIndex);              // Initialize Flash pointer
 
-	FCTL1 = FWKEY + WRT;                      // Set WRT bit for write operation
+	FCTL1 = FWKEY + ERASE;                      // Set WRT bit for write operation
 	FCTL3 = FWKEY;                            // Clear Lock bit
+	//*Flash_ptr = 0;                           // Dummy write to erase Flash segment
+	FCTL1 = FWKEY + WRT;
 
 	*Flash_ptr = Value;
 
@@ -359,14 +394,15 @@ void CopyFlashFromTmp(char MsgIndex, char Len)
 	else if (MsgIndex == 4)
 		Flash_ptr = (char *) START3;              // Initialize Flash pointer
 
-	FCTL1 = FWKEY + WRT;                      // Set WRT bit for write operation
+	FCTL1 = FWKEY + ERASE;                      // Set WRT bit for write operation
 	FCTL3 = FWKEY;                            // Clear Lock bit
-
+	//*Flash_ptr = 0;                           // Dummy write to erase Flash segment
+	FCTL1 = FWKEY + WRT;
 	char i;
 
 	for(i = 0;i<Len;i++)
 	{
-		*Flash_ptr++ = *Flash_ptr_tmp++;//copy from temporary flash memory
+		*Flash_ptr++ = (char)(*Flash_ptr_tmp++);//copy from temporary flash memory
 	}
 
 

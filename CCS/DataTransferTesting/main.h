@@ -31,6 +31,12 @@ volatile char sensorData[20];
 volatile int sensorReads[20];
 volatile char mode = 0;  //0 = light sensor read, 1 = POV
 
+volatile char SelectedPOVMessage = 0;
+volatile int POVStart = 0;
+volatile char POVCurIndex = 0;
+volatile char POVLen = 5;
+char *POV_Flash_ptr;
+
 volatile char msgLen = 0;
 
 void write(char data);
