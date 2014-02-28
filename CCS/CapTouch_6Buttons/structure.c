@@ -52,8 +52,8 @@ const struct Element L_element = {
               // When using an abstracted function to measure the element
               // the 100*(maxResponse - threshold) < 0xFFFF
               // ie maxResponse - threshold < 655
-              .maxResponse = 100+655,		
-              .threshold = 100
+              .maxResponse = 3000+655,
+              .threshold = 3000
 };
 
 // A Element (P2.1)
@@ -65,8 +65,8 @@ const struct Element A_element = {
               // When using an abstracted function to measure the element
               // the 100*(maxResponse - threshold) < 0xFFFF
               // ie maxResponse - threshold < 655
-              .maxResponse = 100+655,		
-              .threshold = 100
+              .maxResponse = 3000+655,
+              .threshold = 3000
 };
 
 // U Element (P2.2)
@@ -78,8 +78,8 @@ const struct Element U_element = {
               // When using an abstracted function to measure the element
               // the 100*(maxResponse - threshold) < 0xFFFF
               // ie maxResponse - threshold < 655
-              .maxResponse = 100+655,		
-              .threshold = 100
+              .maxResponse = 3000+655,
+              .threshold = 3000
 };
 
 // N Element (P2.3)
@@ -91,8 +91,8 @@ const struct Element N_element = {
               // When using an abstracted function to measure the element
               // the 100*(maxResponse - threshold) < 0xFFFF
               // ie maxResponse - threshold < 655
-              .maxResponse = 100+655,		
-              .threshold = 100
+              .maxResponse = 3000+655,
+              .threshold = 3000
 };
 
 // C Element (P2.4)
@@ -104,8 +104,8 @@ const struct Element C_element = {
               // When using an abstracted function to measure the element
               // the 100*(maxResponse - threshold) < 0xFFFF
               // ie maxResponse - threshold < 655
-              .maxResponse = 100+655,
-              .threshold = 100
+              .maxResponse = 3000+655,
+              .threshold = 3000
 };
 
 // H Element (P2.5)
@@ -117,8 +117,8 @@ const struct Element H_element = {
               // When using an abstracted function to measure the element
               // the 100*(maxResponse - threshold) < 0xFFFF
               // ie maxResponse - threshold < 655
-              .maxResponse = 100+655,		
-              .threshold = 100
+              .maxResponse = 3000+655,
+              .threshold = 3000
 };
 
 //*** CAP TOUCH HANDLER *******************************************************/
