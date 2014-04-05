@@ -1,5 +1,6 @@
 #include <msp430.h> 
 #include "main.h"
+#include "standardMessages.h"
 /*
  * main.c
  */
@@ -34,12 +35,16 @@ int main(void) {
 
 	ConfigureSPI();
 
+	write(0xFF);
 	write(0x7);
 	_delay_cycles(1000000);
 	write(BIT2);
 	_delay_cycles(1000000);
 
-	StartLightSensor();
+//	StartLightSensor();
+
+	SelectedPOVMessage = 0;
+	StartPOV();
 
 	while(1)
 	{
@@ -137,20 +142,20 @@ void readSensor()
 
 			if(msgLen > 0)
 			{
-				WriteFlash(5, sensorDataIndex+1, currentVal); //write to temp location
+				WriteFlash(5, sensorDataIndex+2, currentVal); //write to temp location
 			}
-			if(sensorDataIndex == 3 && msgLen == 0)  //first time through, we have the full initialization sequence
+			if(sensorDataIndex == 4 && msgLen == 0)  //first time through, we have the full initialization sequence
 			{
 				if(sensorData[0] == 0xAA && sensorData[1] == 0xFF)
 				{
 					//which message we're storing
 					msgIndex = sensorData[2];
 					//length of message being transmitted
-					//TODO: need a temp storage place in flash for incomplete messages - otherwise we'd be using 1/2 our ram for temporary message storage
-					msgLen = sensorData[3];
+					msgLen = (sensorData[3]<<8) | sensorData[4]; //length is two bytes
 					sensorDataIndex = 0;
 					currentVal = 0;
-					WriteFlash(5, 0, msgLen);
+					WriteFlash(5, 0, (char)((msgLen>>8)&0xFF));
+					WriteFlash(5, 1, (char)(msgLen&0xFF));
 				}
 				else
 				{
@@ -218,9 +223,12 @@ void readSensor()
 
 void StartLightSensor()
 {
-	CCTL0 = CCIE;                             // CCR0 interrupt enabled
-	CCR0 = 2000;
-	TACTL = TASSEL_2 + MC_1;                  // SMCLK, upmode
+	EraseFlashGroup(5); //clear out destination flash first
+
+
+	TA1CCTL0 = CCIE;                             // CCR0 interrupt enabled
+	TA1CCR0 = 2000;
+	TA1CTL = TASSEL_2 + MC_1;                  // SMCLK, upmode
 
 	ADC10CTL0 &= ~ENC;
 
@@ -288,13 +296,15 @@ void ConfigureSPI()
 
 	//Initialize USCI B for SPI
 	UCB0CTL1 |= UCSWRST;
-	UCB0CTL0 =  UCMST | UCMODE_0 | UCSYNC |UCCKPH|UCCKPL;
+	UCB0CTL0 =  UCMST | UCMODE_0 | UCSYNC |UCCKPH|UCCKPL|UCMSB;
 	UCB0CTL1 = UCSSEL_2 | UCSWRST;
 	UCB0BR0 = 1;
 	UCB0CTL1 &= ~UCSWRST;
 }
 void StartPOV()
 {
+	TA1CCTL0 = CCIE;                             // CCR0 interrupt enabled
+	TA1CTL = TASSEL_2 + MC_1;                  // SMCLK, upmode
 	if(SelectedPOVMessage == 0)
 	{
 		POV_Flash_ptr = (char *) (START0);
@@ -310,37 +320,34 @@ void StartPOV()
 		POV_Flash_ptr = (char *) (START2);
 		POVStart = START2; //store start position
 	}
-	else if(SelectedPOVMessage == 3)
-	{
-		POV_Flash_ptr = (char *) (START3);
-		POVStart = START3; //store start position
-	}
 
-	POVLen = *POV_Flash_ptr;
+
+	POVLen = (*POV_Flash_ptr++)<<8;
+	POVLen |= (*POV_Flash_ptr);
 
 	*POV_Flash_ptr++; //move to the first item in the list
 	POVCurIndex = 0;
-	CCR0 = 2000;
+	TA1CCR0 = 2000;
 	mode = 1;
 }
 
 void NextPOV()
 {
-	P2OUT &= ~BIT6;
+	//P2OUT &= ~BIT6;
 	//_delay_cycles(10);
-	write(*POV_Flash_ptr);
+	write((*POV_Flash_ptr));
 
 	//_delay_cycles(10);
 
 	//_delay_cycles(1);
-	P2OUT |= BIT6;
+	//P2OUT |= BIT6;
 
 	POVCurIndex++;
 	POV_Flash_ptr++;
 
 	if(POVCurIndex >= POVLen)
 	{
-		POV_Flash_ptr = (char *)(POVStart+1);
+		POV_Flash_ptr = (char *)(POVStart+2);
 		POVCurIndex = 0;
 	}
 }
@@ -355,7 +362,7 @@ void write(char data) {
 	P2OUT |= BIT6;
 }
 
-void WriteFlash(char MsgIndex, char ValIndex, char Value)
+void WriteFlash(char MsgIndex, unsigned int ValIndex, char Value)
 {
 	char *Flash_ptr;                          // Flash pointer
 	if(MsgIndex == 1)
@@ -364,8 +371,6 @@ void WriteFlash(char MsgIndex, char ValIndex, char Value)
 		Flash_ptr = (char *) (START1+ValIndex);              // Initialize Flash pointer
 	else if (MsgIndex == 3)
 		Flash_ptr = (char *) (START2+ValIndex);              // Initialize Flash pointer
-	else if (MsgIndex == 4)
-		Flash_ptr = (char *) (START3+ValIndex);              // Initialize Flash pointer
 	else if (MsgIndex == 5)
 		Flash_ptr = (char *) (STARTTMP+ValIndex);              // Initialize Flash pointer
 
@@ -380,10 +385,12 @@ void WriteFlash(char MsgIndex, char ValIndex, char Value)
 	FCTL3 = FWKEY + LOCK;                     // Set LOCK bit
 }
 
-void CopyFlashFromTmp(char MsgIndex, char Len)
+void CopyFlashFromTmp(char MsgIndex, unsigned int Len)
 {
 	char *Flash_ptr;                          // Flash pointer
 	char *Flash_ptr_tmp = (char *) STARTTMP;
+
+	EraseFlashGroup(MsgIndex); //clean out destination first
 
 	if(MsgIndex == 1)
 		Flash_ptr = (char *) START0;              // Initialize Flash pointer
@@ -391,14 +398,13 @@ void CopyFlashFromTmp(char MsgIndex, char Len)
 		Flash_ptr = (char *) START1;              // Initialize Flash pointer
 	else if (MsgIndex == 3)
 		Flash_ptr = (char *) START2;              // Initialize Flash pointer
-	else if (MsgIndex == 4)
-		Flash_ptr = (char *) START3;              // Initialize Flash pointer
+
 
 	FCTL1 = FWKEY + ERASE;                      // Set WRT bit for write operation
 	FCTL3 = FWKEY;                            // Clear Lock bit
 	//*Flash_ptr = 0;                           // Dummy write to erase Flash segment
 	FCTL1 = FWKEY + WRT;
-	char i;
+	unsigned int i;
 
 	for(i = 0;i<Len;i++)
 	{
@@ -411,8 +417,38 @@ void CopyFlashFromTmp(char MsgIndex, char Len)
 	FCTL3 = FWKEY + LOCK;                     // Set LOCK bit
 }
 
-#pragma vector=TIMER0_A0_VECTOR
-__interrupt void TIMER0_A0_ISR_HOOK(void)
+void EraseFlashGroup(char MsgIndex)
+{
+	char *Flash_ptr;                          // Flash pointer
+	FCTL1 = FWKEY + ERASE;                      // Set WRT bit for write operation
+	FCTL3 = FWKEY;                            // Clear Lock bit
+
+
+	if(MsgIndex == 1)
+		Flash_ptr = (char *) START0;              // Initialize Flash pointer
+	else if(MsgIndex == 2)
+		Flash_ptr = (char *) START1;              // Initialize Flash pointer
+	else if (MsgIndex == 3)
+		Flash_ptr = (char *) START2;              // Initialize Flash pointer
+	if (MsgIndex == 5)
+		Flash_ptr = (char *) STARTTMP;              // Initialize Flash pointer
+
+
+	//need to erase 64 flash segments to cover the 1024 bytes (erases 16 bytes at a time)
+	char i;
+	for (i=0;i<64;i++)
+	{
+		*Flash_ptr = 0;
+		Flash_ptr+= 16;
+	}
+
+
+	FCTL1 = FWKEY;                            // Clear ERASE bit
+	FCTL3 = FWKEY + LOCK;                     // Set LOCK bit
+}
+
+#pragma vector=TIMER1_A0_VECTOR
+__interrupt void TIMER1_A0_ISR_HOOK(void)
 {
 	 if(mode == 0)
 		 readSensor();

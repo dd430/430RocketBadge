@@ -14,11 +14,7 @@
 #define FLASH_STORAGE_START 0xEFE0
 #define FLASH_STORAGE_LENGTH 0X1000
 
-#define START0	0xEFE0
-#define START1	0xF300
-#define START2	0xF700
-#define START3	0xFB00
-#define STARTTMP	0xFF00
+
 
 
 volatile char lightSensor = 0; //0 = data, 1 = clock
@@ -26,18 +22,18 @@ volatile int dataSensorVal = 0;
 volatile int clockSensorVal = 0;
 volatile int clockSensorValLast = 0;
 
-volatile char sensorDataIndex = 0;
+volatile unsigned int sensorDataIndex = 0;
 volatile char sensorData[20];
 volatile int sensorReads[20];
 volatile char mode = 0;  //0 = light sensor read, 1 = POV
 
 volatile char SelectedPOVMessage = 0;
 volatile int POVStart = 0;
-volatile char POVCurIndex = 0;
-volatile char POVLen = 5;
+volatile unsigned int POVCurIndex = 0;
+volatile unsigned int POVLen = 5;
 char *POV_Flash_ptr;
 
-volatile char msgLen = 0;
+volatile unsigned int msgLen = 0;
 
 void write(char data);
 
@@ -48,8 +44,9 @@ void ConfigureSPI();
 void StartLightSensor();
 void DisableLightSensor();
 
-void WriteFlash(char MsgIndex, char ValIndex, char Value);
-void CopyFlashFromTmp(char MsgIndex, char Len);
+void WriteFlash(char MsgIndex, unsigned int ValIndex, char Value);
+void CopyFlashFromTmp(char MsgIndex, unsigned int Len);
+void EraseFlashGroup(char MsgIndex);
 
 void StartPOV();
 
