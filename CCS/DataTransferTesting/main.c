@@ -40,11 +40,12 @@ int main(void) {
 	_delay_cycles(1000000);
 	write(BIT2);
 	_delay_cycles(1000000);
+	write(0x00);
 
-//	StartLightSensor();
+	StartLightSensor();
 
-	SelectedPOVMessage = 0;
-	StartPOV();
+	//SelectedPOVMessage = 0;
+	//StartPOV();
 
 	while(1)
 	{
@@ -80,7 +81,7 @@ void readSensor()
 	static char currentIndex = 0;
 	static char clockLow = 0;
 	static char dataLow = 0;
-	static int readsSinceChange=0;
+	static unsigned int readsSinceChange=0;
 
 
 
@@ -196,7 +197,7 @@ void readSensor()
 		}
 
 	}
-	write((~dataLow&BIT0) << 1|(~clockLow&BIT0)); //output to shift register for visual indicator
+	//write((~dataLow&BIT0) << 1|(~clockLow&BIT0)); //output to shift register for visual indicator
 
 
 	//not enabled yet - the intention of this block is to indicate that we're done reading
@@ -290,6 +291,7 @@ void DisableLightSensor()
 
 void ConfigureSPI()
 {
+	/*
 	//configure pins for SPI
 	P1SEL2 = BIT5 | BIT7;
 	P1SEL = BIT5 | BIT7;
@@ -300,6 +302,9 @@ void ConfigureSPI()
 	UCB0CTL1 = UCSSEL_2 | UCSWRST;
 	UCB0BR0 = 1;
 	UCB0CTL1 &= ~UCSWRST;
+	*/
+	P2DIR |= 0x1F; //bits 0-4
+	P2OUT &= 0xE0; //turn off lower 5 bits for LEDs
 }
 void StartPOV()
 {
@@ -353,13 +358,16 @@ void NextPOV()
 }
 
 void write(char data) {
-	P2OUT &= ~BIT6;
-	while (!(IFG2 & UCB0TXIFG))
-		;
-	UCB0TXBUF = data;
-	while (!(IFG2 & UCB0TXIFG))
-	          ;
-	P2OUT |= BIT6;
+//	P2OUT &= ~BIT6;
+//	while (!(IFG2 & UCB0TXIFG))
+//		;
+//	UCB0TXBUF = data;
+//	while (!(IFG2 & UCB0TXIFG))
+//	          ;
+//	P2OUT |= BIT6;
+
+	P2OUT &= 0xE0;//clear first
+	P2OUT |= (data & 0x1F);//only take first 5 bits
 }
 
 void WriteFlash(char MsgIndex, unsigned int ValIndex, char Value)

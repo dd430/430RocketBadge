@@ -42,7 +42,7 @@
 		    }
 		    .greyCircle
 		    {
-                background-color:grey;
+                background-color:#323232;
 		    }
 		    .message
 		    {
@@ -58,7 +58,7 @@
 		</style>
 		<script type="text/javascript">
 			//var startString = "01010101111111110101010111111111";
-		    var startString = (0xAAFF).toString(2); //have to pad with a dummy start value for some reason - need to iron that out in code?
+		    var startString = (0xAAFF).toString(2); 
 			var endString = 0xAA;
 		    var transmitString = "";
 		    var transmitData = new Array(true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, false, false);
@@ -143,20 +143,34 @@
 			    $('div.message').each(
                     function () {
                         var circles = $(this).children('div.circleDiv');
+						var character = "";
                         for(var i = 0;i < circles.length; i++)
                         {
+							if((i % 5) == 0  && character != "")
+							{
+							character = "000" + character;
+								displayString += character;
+								//alert(character);
+								character = "";
+							}
                             if ($(circles[i]).hasClass('greyCircle'))
-                                displayString += "0";
+                                character = "0" + character;
                             else
-                                displayString += "1";
+                                character = "1" + character;
                         }
-                        displayString += "000";//only 5 bits on display - transmitting bytes
+						if(character != "")
+						{
+							character = "000" + character;
+							//alert(character);
+							displayString += character;
+						}
+                        displayString = displayString;//only 5 bits on display - transmitting bytes
                     }
                     
                 );
 			    
 			    var lenString = $('div.message').length.toString(2);
-			    while (lenString.length < 8)
+			    while (lenString.length < 16)
 			        lenString = "0" + lenString; //zero-pad to two bytes
 			    var msgIndex = parseInt($('#MsgIndex').val()).toString(2);
 			    while (msgIndex.length < 8)
@@ -166,8 +180,19 @@
 				//Format will be used to determine actual beginning of a transmission as well as a valid transmission.  Might need a checksum as well...
 			    transmitString = startString + msgIndex + lenString + displayString + endString.toString(2);
 			    //transmitString = displayString;
-
-			    $("#TransmitOutput").val(transmitString);
+				var binaryOutput = lenString + displayString;
+				var hexOutput = "";
+				var tmpHex;
+				while(binaryOutput.length > 0)
+				{
+					tmpHex = parseInt(binaryOutput.substring(0,8), 2).toString(16);
+					if(tmpHex.length == 1)
+						tmpHex = "0" + tmpHex;
+					hexOutput += "0x" + tmpHex + ",";
+					binaryOutput = binaryOutput.substring(8);
+				}
+				//alert(hexOutput);
+			    $("#TransmitOutput").val(hexOutput);
 			}
 		</script>
 	</head>
@@ -178,7 +203,6 @@
                 <option>1</option>
                 <option>2</option>
                 <option>3</option>
-                <option>4</option>
             </select></h2>
         <div id="MessageDiv">
             <div class="message">
@@ -204,7 +228,7 @@
             </div>
         </div>
         <div><br /><br /><input type="button" id="btnTest" onclick="javascript: toBinary();" value="Test" />
-            <textarea type="textarea" id="TransmitOutput" rows="5" >output shows here</textarea>
+            <textarea type="textarea" id="TransmitOutput" rows="5" style="width:500px" >output shows here</textarea>
         </div>		
 	</body>
 </html>
