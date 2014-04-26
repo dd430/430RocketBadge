@@ -16,3 +16,8 @@
 *.exe
 *.out
 *.app
+
+#CCS Debug Output files
+Debug/
+.settings/
+.launches/
