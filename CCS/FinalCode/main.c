@@ -43,6 +43,8 @@
 uint16_t dCnt[6];
 #endif
 
+
+
 uint8_t onState, blState;
 
 
@@ -319,6 +321,7 @@ void main(void)
 					// Flame effect based on position on Cap Touch pads
 					switch (BIT4>>(position/50))
 					{
+<<<<<<< HEAD
 						 case 0: write(0); break;
 						 case BIT0: write(BIT0); break;
 						 case BIT1: write(BIT0|BIT1); break;
@@ -326,6 +329,15 @@ void main(void)
 						 case BIT3: write(BIT0|BIT1|BIT2|BIT3); break;
 						 case BIT4: write(BIT0|BIT1|BIT2|BIT3|BIT4); break;
 						 default:break;
+=======
+						case 0: write(0); break;
+						case BIT0: write(BIT0); break;
+						case BIT1: write(BIT0|BIT1); break;
+						case BIT2: write(BIT0|BIT1|BIT2); break;
+						case BIT3: write(BIT0|BIT1|BIT2|BIT3); break;
+						case BIT4: write(BIT0|BIT1|BIT2|BIT3|BIT4); break;
+						default:break;
+>>>>>>> 87398862e002b6f74ecaa2c9f9cc4dd14389c895
 					}
 				}
 
