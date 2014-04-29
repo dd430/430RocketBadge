@@ -132,6 +132,7 @@ void main(void)
 	char buttons[6];
 	char buttonIndex = 0;
 	char badCount = 0;
+	char direction = 0; //0 = up, 1 = down
 	// Main loop starts here
   while (1)
   {
@@ -154,17 +155,29 @@ void main(void)
         
 
 */
-	ReadCapTouch();
+
 	if(mode == MODE_POV)
 	{
+		ReadCapTouch();
+		/*
+		 * Three things happening here.
+		 *  1 - one of th first three buttons triggers a change in the POV message
+		 *  2 - slide from bottom up switches to the cap touch demo
+		 *  3 - slide from top down triggers light programming sequence
+		 */
 		if (position == ILLEGAL_SLIDER_WHEEL_POSITION || position == 0)
 		{
 			if(!povActive)
 				StartPOV(SelectedPOVMessage);
 			badCount++; //issue with slide, or took their finger off just a bit
-			if(badCount > 5)
+			if(badCount > 3)
 			{
-
+				if(lastButton < 3 && SelectedPOVMessage != button)
+				{
+					write(0x1F);
+					_delay_cycles(100000);
+					StartPOV(button);
+				}
 				buttons[0] = 255;
 				buttons[1] = 255;
 				buttons[2] = 255;
@@ -181,7 +194,9 @@ void main(void)
 			StopPOV();
 
 			button = ((255-position)/42);
-			if(buttonIndex == 0 && button < 3) //first button touched and L, A or U - switch to that POV message
+			//if(buttonIndex == 0 && button < 3) //first button touched and L, A or U - switch to that POV message
+			//if(position == 255 && lastButton < 3)
+			if(0) //disabling
 			{
 				write(0x1F);
 				_delay_cycles(100000);
@@ -190,7 +205,7 @@ void main(void)
 			else
 			{
 				write(1<<button);
-				if(buttonIndex > 0 || (buttonIndex == 0 && button > 4))
+				if((buttonIndex > 0 && buttons[0]> 4 ) || (buttonIndex == 0 && button > 4)) //bottom-up
 				{
 					if(buttonIndex == 0 || buttons[buttonIndex-1] != button) //either first button, or different from the last button
 						buttons[buttonIndex] = button;
@@ -207,7 +222,7 @@ void main(void)
 							buttons[5] = 255;
 							buttonIndex = 0;
 						}
-						else if(buttonIndex == 4)
+						else if(buttonIndex == 5)
 						{
 							//slid all  the way up the - switch modes
 							write(0x1F); //indicate visually that we're switching modes
@@ -229,6 +244,44 @@ void main(void)
 					}
 
 				}
+				else if((buttonIndex > 0 && buttons[0] == 1 ) || (buttonIndex == 0 && button == 1))//top-down
+				{
+					if(buttonIndex == 0 || buttons[buttonIndex-1] != button) //either first button, or different from the last button
+						buttons[buttonIndex] = button;
+					if(buttonIndex > 0)
+					{
+						if(!(buttons[buttonIndex - 1] == (button - 1)) && button != lastButton) //they need to be sliding from the bottom up
+						{
+							StartPOV(SelectedPOVMessage);
+							buttons[0] = 255;
+							buttons[1] = 255;
+							buttons[2] = 255;
+							buttons[3] = 255;
+							buttons[4] = 255;
+							buttons[5] = 255;
+							buttonIndex = 0;
+						}
+						else if(buttonIndex == 5)
+						{
+							//slid all  the way up the - switch modes
+							write(0x1F); //indicate visually that we're switching modes
+							_delay_cycles(1000000);
+							SetMode(MODE_PROGRAM);
+						}
+						else if(button == lastButton)
+						{
+							//haven't moved on to the next button, wait for movement
+						}
+						else
+						{
+							buttonIndex++;
+						}
+					}
+					else
+					{
+						buttonIndex++;//bump up to index 1
+					}
+				}
 			}
 			lastButton = button;
 		}
@@ -243,6 +296,7 @@ void main(void)
 	}
 	else if(mode == MODE_CAP_DEMO)
 	{
+		ReadCapTouch();
 		if(position == ILLEGAL_SLIDER_WHEEL_POSITION)
 			{
 				//Turn Off LEDs
@@ -262,7 +316,17 @@ void main(void)
 				{
 					position = (oldPosition+position)/2;
 					// Update LEDs
-					write(BIT4>>(position/50));
+					// Flame effect based on position on Cap Touch pads
+					switch (BIT4>>(position/50))
+					{
+						 case 0: write(0); break;
+						 case BIT0: write(BIT0); break;
+						 case BIT1: write(BIT0|BIT1); break;
+						 case BIT2: write(BIT0|BIT1|BIT2); break;
+						 case BIT3: write(BIT0|BIT1|BIT2|BIT3); break;
+						 case BIT4: write(BIT0|BIT1|BIT2|BIT3|BIT4); break;
+						 default:break;
+					}
 				}
 
 
@@ -271,7 +335,10 @@ void main(void)
 			}
 			oldPosition = position;
 	}
-
+	else if(mode == MODE_PROGRAM)
+	{
+		_BIS_SR(LPM0_bits + GIE);
+	}
 	#endif
   }
 } // End Main
@@ -280,6 +347,10 @@ void StartLightSensor()
 {
 	EraseFlashGroup(5); //clear out destination flash first
 
+	P2DIR |= BIT7;
+	P2OUT |= BIT7;  //turn 2.7 on - it powers the light sensors
+	P2SEL2 &= ~(BIT6|BIT7);
+	P2SEL &= ~(BIT6|BIT7);
 
 	TA1CCTL0 = CCIE;                             // CCR0 interrupt enabled
 	TA1CCR0 = 250;
@@ -334,11 +405,12 @@ void StartLightSensor()
 	/* enable ADC10 */
 	ADC10CTL0 |= ENC;
 
-	SetMode(MODE_PROGRAM);
+	//SetMode(MODE_PROGRAM);
 }
 
 void DisableLightSensor()
 {
+	P2OUT &= ~BIT7; //turn off power to sensors
     /* POWER: Turn ADC and reference voltage off to conserve power */
     ADC10CTL0 &= ~(ADC10ON | REFON);
 }
@@ -466,6 +538,7 @@ void readSensor()
 					CopyFlashFromTmp(msgIndex, msgLen+1); //length + 1 to grab the message length as well
 
 					SelectedPOVMessage = msgIndex-1;
+					SetMode(MODE_POV);
 					StartPOV(SelectedPOVMessage);
 				}
 				else //oops - transmission problem
@@ -499,6 +572,7 @@ void SetMode(char NewMode)
 			ConfigureLEDs();
 			break;
 		case 2: //POV Program
+			write(0x00); //turn off LEDs
 			StartLightSensor();
 			break;
 		case 3:
@@ -682,10 +756,13 @@ __interrupt void TIMER1_A0_ISR_HOOK(void)
 {
 	if(mode == MODE_CAP_DEMO)
 		__no_operation();
-	 if(mode == MODE_POV)
+	else if(mode == MODE_POV)
+	{
 		 if(NextPOV())
 			 LPM0_EXIT;
-		 //readSensor();
+	}
+	else if(mode == MODE_PROGRAM)
+		 readSensor();
 
 }
 
