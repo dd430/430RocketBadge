@@ -106,11 +106,7 @@ void main(void)
 	P2OUT = 0x00;							// Drive all Port 2 pins low
 	P2DIR = 0xFF;							// Configure all Port 2 pins outputs
 
-	//light sensor setup
-	P1REN |= BIT0|BIT3;
-	P1OUT &= ~(BIT0|BIT3);
-	P2DIR |= BIT7;
-	P2OUT |= BIT7;  //turn 2.7 on - it powers the light sensors
+
 
 
 	// Initialize Baseline measurement
@@ -132,7 +128,6 @@ void main(void)
 	char buttons[6];
 	char buttonIndex = 0;
 	char badCount = 0;
-	char direction = 0; //0 = up, 1 = down
 	// Main loop starts here
   while (1)
   {
@@ -347,10 +342,13 @@ void StartLightSensor()
 {
 	EraseFlashGroup(5); //clear out destination flash first
 
+	P2SEL2 &= ~(BIT7);
+	P2SEL &= ~(BIT7);
+	//light sensor setup
+	P1REN |= BIT0|BIT3;
+	P1OUT &= ~(BIT0|BIT3);
 	P2DIR |= BIT7;
 	P2OUT |= BIT7;  //turn 2.7 on - it powers the light sensors
-	P2SEL2 &= ~(BIT6|BIT7);
-	P2SEL &= ~(BIT6|BIT7);
 
 	TA1CCTL0 = CCIE;                             // CCR0 interrupt enabled
 	TA1CCR0 = 250;
@@ -405,7 +403,7 @@ void StartLightSensor()
 	/* enable ADC10 */
 	ADC10CTL0 |= ENC;
 
-	//SetMode(MODE_PROGRAM);
+	readSensor(1);//reset variables used by sensor routine
 }
 
 void DisableLightSensor()
@@ -433,7 +431,7 @@ void switchSensor(char sensorNeeded)
 	}
 	ADC10CTL0 |= ENC;
 }
-void readSensor()
+void readSensor(char resetFlag)
 {
 
 	static char currentVal = 0;
@@ -448,8 +446,18 @@ void readSensor()
 
 
 	//static int readSCOverflow=0;
-	char ReadVal = 0x0;
+	static char ReadVal = 0x0;
+	ReadVal = 0;
 
+	if(resetFlag)
+	{
+		currentVal = 0;
+		currentIndex = 0;
+		clockLow = 0;
+		dataLow = 0;
+		readsSinceChange=0;
+		msgIndex = 0;
+	}
 
 	//Read Clock Sensor
 
@@ -525,7 +533,7 @@ void readSensor()
 					write(0x00);
 					_delay_cycles(1000000);
 					write(0xFF);
-					LPM4; //turn off MCU
+					SetMode(MODE_POV);
 				}
 			}
 			else if(msgLen > 0 && sensorDataIndex == msgLen) //reached anticipated message length
@@ -542,20 +550,31 @@ void readSensor()
 					StartPOV(SelectedPOVMessage);
 				}
 				else //oops - transmission problem
-					LPM4;
+				{
+					write(BIT0);
+					_delay_cycles(1000000);
+					write(0x00);
+					_delay_cycles(1000000);
+					write(BIT0);
+					SetMode(MODE_POV);
+				}
 			}
 			else
 			{
 				sensorDataIndex++;
 				dataLow = 1;
-				//if(sensorDataIndex > 19)
-				//	sensorDataIndex = 0;
 				currentVal = 0;
 			}
 
 
 		}
 
+	}
+	else if(readsSinceChange > 3000)
+	{
+		write(0x1F);
+		_delay_cycles(1000000);
+		SetMode(MODE_POV);
 	}
 }
 
@@ -566,12 +585,15 @@ void SetMode(char NewMode)
 	{
 		case 0://cap touch demo
 			StopPOV();
+			DisableLightSensor();
 			ConfigureLEDs();
 			break;
 		case 1: //POV
+			DisableLightSensor();
 			ConfigureLEDs();
 			break;
 		case 2: //POV Program
+			StopPOV();
 			write(0x00); //turn off LEDs
 			StartLightSensor();
 			break;
@@ -681,10 +703,11 @@ void CopyFlashFromTmp(char MsgIndex, unsigned int Len)
 		Flash_ptr = (char *) START2;              // Initialize Flash pointer
 
 
-	FCTL1 = FWKEY + ERASE;                      // Set WRT bit for write operation
-	FCTL3 = FWKEY;                            // Clear Lock bit
+//	FCTL1 = FWKEY + ERASE;                      // Set WRT bit for write operation
+//	FCTL3 = FWKEY;                            // Clear Lock bit
 
 	FCTL1 = FWKEY + WRT;
+	FCTL3 = FWKEY;
 	unsigned int i;
 
 	for(i = 0;i<Len;i++)
@@ -762,7 +785,7 @@ __interrupt void TIMER1_A0_ISR_HOOK(void)
 			 LPM0_EXIT;
 	}
 	else if(mode == MODE_PROGRAM)
-		 readSensor();
+		 readSensor(0);
 
 }
 

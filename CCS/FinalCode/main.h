@@ -46,7 +46,7 @@ volatile char msgLen = 0;
 void write(char data);
 
 void switchSensor(char sensorNeeded);
-void readSensor();
+void readSensor(char resetFlag);
 
 void ConfigureLEDs();
 void DisableLEDs();
