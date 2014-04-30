@@ -223,6 +223,7 @@ void main(void)
 							write(0x1F); //indicate visually that we're switching modes
 							_delay_cycles(1000000);
 							SetMode(MODE_CAP_DEMO);
+
 						}
 						else if(button == lastButton)
 						{
@@ -612,21 +613,26 @@ void StartPOV(char whichMessage)
 	SelectedPOVMessage = whichMessage;
 	TA1CCTL0 = CCIE;                             // CCR0 interrupt enabled
 	TA1CTL = TASSEL_2 + MC_1;                  // SMCLK, upmode
-	if(SelectedPOVMessage == 0)
+	switch(SelectedPOVMessage)
 	{
-		POV_Flash_ptr = (char *) (START0);
-		POVStart = START0; //store start position
+		case 0:
+			POV_Flash_ptr = (char *) (START0);
+			POVStart = START0; //store start position
+			break;
+		case 1:
+			POV_Flash_ptr = (char *) (START1);
+			POVStart = START1; //store start position
+			break;
+		case 2:
+			POV_Flash_ptr = (char *) (START2);
+			POVStart = START2; //store start position
+			break;
+		case 3:
+			POV_Flash_ptr = (char *) (START_EE);
+			POVStart = START_EE; //store start position
+			break;
 	}
-	else if(SelectedPOVMessage == 1)
-	{
-		POV_Flash_ptr = (char *) (START1);
-		POVStart = START1; //store start position
-	}
-	else if(SelectedPOVMessage == 2)
-	{
-		POV_Flash_ptr = (char *) (START2);
-		POVStart = START2; //store start position
-	}
+
 
 
 	POVLen = (*POV_Flash_ptr++)<<8;
@@ -662,18 +668,32 @@ char NextPOV()
 	return 0;
 }
 
+void EE()
+{
+	StartPOV(3);
+	lastButton = 3;
+	button = 3;
+}
+
 //Note - expects flash segment to be erased first
 void WriteFlash(char MsgIndex, unsigned int ValIndex, char Value)
 {
 	char *Flash_ptr;                          // Flash pointer
-	if(MsgIndex == 1)
-		Flash_ptr = (char *) (START0+ValIndex);              // Initialize Flash pointer
-	else if(MsgIndex == 2)
-		Flash_ptr = (char *) (START1+ValIndex);              // Initialize Flash pointer
-	else if (MsgIndex == 3)
-		Flash_ptr = (char *) (START2+ValIndex);              // Initialize Flash pointer
-	else if (MsgIndex == 5)
-		Flash_ptr = (char *) (STARTTMP+ValIndex);              // Initialize Flash pointer
+	switch(MsgIndex)
+	{
+		case 1:
+			Flash_ptr = (char *) (START0+ValIndex);              // Initialize Flash pointer
+			break;
+		case 2:
+			Flash_ptr = (char *) (START1+ValIndex);              // Initialize Flash pointer
+			break;
+		case 3:
+			Flash_ptr = (char *) (START2+ValIndex);              // Initialize Flash pointer
+			break;
+		case 5:
+			Flash_ptr = (char *) (STARTTMP+ValIndex);              // Initialize Flash pointer
+			break;
+	}
 
 	FCTL1 = FWKEY + ERASE;                      // Set WRT bit for write operation
 	FCTL3 = FWKEY;                            // Clear Lock bit

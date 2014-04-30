@@ -63,6 +63,8 @@ void ReadCapTouch();
 void StartPOV(char whichMessage);
 void StopPOV();
 
+void EE();
+
 
 char NextPOV();
 
