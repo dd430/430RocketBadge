@@ -24,6 +24,8 @@ volatile char povActive = 0;
 volatile char readingCapTouch;
 void SetMode(char NewMode);
 
+volatile char button, lastButton;
+
 
 volatile char lightSensor = 0; //0 = data, 1 = clock
 volatile int dataSensorVal = 0;

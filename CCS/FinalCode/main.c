@@ -30,22 +30,7 @@
 #include "main.h"
 #include "standardMessages.h"
 
-
-// Uncomment to have this compiler directive run characterization functions only
-// Comment to have this compiler directive run example application
-//#define ELEMENT_CHARACTERIZATION_MODE
-
-//#define DELAY 1000 		// Timer delay timeout count, 250*0.1msec = 25 msec +
-                        // 24 msec for measurement
-
-#ifdef ELEMENT_CHARACTERIZATION_MODE
-// Delta Counts returned from the API function for the sensor during characterization
-uint16_t dCnt[6];
-#endif
-
 uint8_t onState, blState;
-
-
 
 void ConfigureLEDs()
 {
@@ -91,8 +76,8 @@ void main(void)
 	BCSCTL3 |= LFXT1S_2;                  // LFXT1 = VLO Clock Source = 12 kHz
 
 	BCSCTL1 |= XT2OFF | DIVA_0;
-		BCSCTL2 = SELM_0 | DIVM_0 | DIVS_3;
-		BCSCTL3 = XT2S_0 | LFXT1S_2 | XCAP_1;
+	BCSCTL2 = SELM_0 | DIVM_0 | DIVS_3;
+	BCSCTL3 = XT2S_0 | LFXT1S_2 | XCAP_1;
 
 	P1OUT = 0x00;							// Drive all Port 1 pins low
 	P1DIR = 0xFF;							// Configure all Port 1 pins outputs
@@ -101,13 +86,9 @@ void main(void)
 	P3DIR = 0;
 	P3OUT = 0;
 
-
 	P2SEL &= ~(BIT6 + BIT7);				// Configure XIN (P2.6) and XOUT (P2.7) to GPIO
 	P2OUT = 0x00;							// Drive all Port 2 pins low
 	P2DIR = 0xFF;							// Configure all Port 2 pins outputs
-
-
-
 
 	// Initialize Baseline measurement
 	TI_CAPT_Init_Baseline(&slider);
@@ -115,42 +96,20 @@ void main(void)
 	// Update baseline measurement (Average 5 measurements)
 	TI_CAPT_Update_Baseline(&slider,5);
 
-
-
 	ConfigureLEDs();
 
 	_delay_cycles(10000);
 
 	StartPOV(0);
 
-	char button, lastButton;
 	lastButton = 255;
 	char buttons[6];
 	char buttonIndex = 0;
 	char badCount = 0;
+	char eeTouchedButtons = 0;
 	// Main loop starts here
   while (1)
   {
-  	
-  	#ifdef ELEMENT_CHARACTERIZATION_MODE
-	// Get the raw delta counts for element characterization 
-	TI_CAPT_Custom(&slider,dCnt);
-	__no_operation(); 					// Set breakpoint here	
-	#endif
-	
-	
-
-	#ifndef ELEMENT_CHARACTERIZATION_MODE
-/*
-	ReadCapTouch();
-
-	__no_operation();
-
-
-        
-
-*/
-
 	if(mode == MODE_POV)
 	{
 		ReadCapTouch();
@@ -189,26 +148,181 @@ void main(void)
 			StopPOV();
 
 			button = ((255-position)/42);
-			//if(buttonIndex == 0 && button < 3) //first button touched and L, A or U - switch to that POV message
-			//if(position == 255 && lastButton < 3)
-			if(0) //disabling
+
+			if(SelectedPOVMessage == 3)
+				StartPOV(0);
+
+			write(1<<button);
+			if((buttonIndex > 0 && buttons[0]> 4 ) || (buttonIndex == 0 && button > 4)) //bottom-up
 			{
-				write(0x1F);
-				_delay_cycles(100000);
-				StartPOV(button);
+				if(buttonIndex == 0 || buttons[buttonIndex-1] != button) //either first button, or different from the last button
+					buttons[buttonIndex] = button;
+				if(buttonIndex > 0)
+				{
+					if(!(buttons[buttonIndex - 1] == (button + 1)) && button != lastButton) //they need to be sliding from the bottom up
+					{
+						StartPOV(SelectedPOVMessage);
+						buttons[0] = 255;
+						buttons[1] = 255;
+						buttons[2] = 255;
+						buttons[3] = 255;
+						buttons[4] = 255;
+						buttons[5] = 255;
+						buttonIndex = 0;
+					}
+					else if(buttonIndex == 5)
+					{
+						//slid all  the way up the - switch modes
+						write(0x1F); //indicate visually that we're switching modes
+						_delay_cycles(1000000);
+						buttons[0] = 255;
+						buttons[1] = 255;
+						buttons[2] = 255;
+						buttons[3] = 255;
+						buttons[4] = 255;
+						buttons[5] = 255;
+						buttonIndex = 0;
+						lastButton = 255;
+						SetMode(MODE_CAP_DEMO);
+					}
+					else if(button == lastButton)
+					{
+						//haven't moved on to the next button, wait for movement
+					}
+					else
+					{
+						buttonIndex++;
+					}
+				}
+				else
+				{
+					buttonIndex++;//bump up to index 1
+				}
+
+			}
+			else if((buttonIndex > 0 && buttons[0] == 1 ) || (buttonIndex == 0 && button == 1))//top-down
+			{
+				if(buttonIndex == 0 || buttons[buttonIndex-1] != button) //either first button, or different from the last button
+					buttons[buttonIndex] = button;
+				if(buttonIndex > 0)
+				{
+					if(!(buttons[buttonIndex - 1] == (button - 1)) && button != lastButton) //they need to be sliding from the bottom up
+					{
+						StartPOV(SelectedPOVMessage);
+						buttons[0] = 255;
+						buttons[1] = 255;
+						buttons[2] = 255;
+						buttons[3] = 255;
+						buttons[4] = 255;
+						buttons[5] = 255;
+						buttonIndex = 0;
+					}
+					else if(buttonIndex == 5)
+					{
+						//slid all  the way up the - switch modes
+						write(0x1F); //indicate visually that we're switching modes
+						_delay_cycles(1000000);
+						SetMode(MODE_PROGRAM);
+					}
+					else if(button == lastButton)
+					{
+						//haven't moved on to the next button, wait for movement
+					}
+					else
+					{
+						buttonIndex++;
+					}
+				}
+				else
+				{
+					buttonIndex++;//bump up to index 1
+				}
+			}
+			lastButton = button;
+		}
+		if(mode == MODE_POV) //did we just switch modes?  If it's not POV, all other functions use sleep instead
+		{
+			if(povActive == 1)
+				_BIS_SR(LPM0_bits + GIE);
+			else
+				sleep(DELAY);
+		}
+	}
+	else if(mode == MODE_CAP_DEMO)
+	{
+		ReadCapTouch();
+		if(position == ILLEGAL_SLIDER_WHEEL_POSITION)
+		{
+			//Turn Off LEDs
+			write(0x00);
+
+			badCount++; //issue with slide, or took their finger off just a bit
+			if(badCount > 3) //finger off for a bit - lets us detect touch & release
+			{
+				if(eeTouchedButtons == 0 && button == 4)
+					eeTouchedButtons |= BIT4;
+				else if(eeTouchedButtons == BIT4 && button == 3)
+					eeTouchedButtons |= BIT3;
+				else if (eeTouchedButtons == (BIT4|BIT3) && button == 0)
+					EE();
+				else if (
+						(eeTouchedButtons == BIT4 && button == 4)
+						|(eeTouchedButtons == (BIT4|BIT3) && button == 3)
+						|button == 0
+						)
+				{}//same as last - wait for another button
+				else
+					eeTouchedButtons = 0;
+				buttons[0] = 255;
+				buttons[1] = 255;
+				buttons[2] = 255;
+				buttons[3] = 255;
+				buttons[4] = 255;
+				buttons[5] = 255;
+				buttonIndex = 0;
+				lastButton = 255;
+				//button = 0;
+			}
+			if(mode == MODE_CAP_DEMO)
+				sleep(DELAY);
+			else
+				_BIS_SR(LPM0_bits + GIE);
+		}
+		else
+		{
+			badCount = 0;
+			// Process position
+			if(oldPosition == ILLEGAL_SLIDER_WHEEL_POSITION)
+			{
+				__no_operation();
 			}
 			else
 			{
-				write(1<<button);
+				button = ((255-position)/42);
+				position = (oldPosition+position)/2;
+				// Update LEDs
+				// Flame effect based on position on Cap Touch pads
+				switch (BIT4>>(position/50))
+				{
+					 case 0: write(0); break;
+					 case BIT0: write(BIT0); break;
+					 case BIT1: write(BIT0|BIT1); break;
+					 case BIT2: write(BIT0|BIT1|BIT2); break;
+					 case BIT3: write(BIT0|BIT1|BIT2|BIT3); break;
+					 case BIT4: write(BIT0|BIT1|BIT2|BIT3|BIT4); break;
+					 default:break;
+				}
+
 				if((buttonIndex > 0 && buttons[0]> 4 ) || (buttonIndex == 0 && button > 4)) //bottom-up
 				{
 					if(buttonIndex == 0 || buttons[buttonIndex-1] != button) //either first button, or different from the last button
 						buttons[buttonIndex] = button;
 					if(buttonIndex > 0)
 					{
+						eeTouchedButtons = 0;
 						if(!(buttons[buttonIndex - 1] == (button + 1)) && button != lastButton) //they need to be sliding from the bottom up
 						{
-							StartPOV(SelectedPOVMessage);
+							//StartPOV(SelectedPOVMessage);  //TODO:fix for cap demo
 							buttons[0] = 255;
 							buttons[1] = 255;
 							buttons[2] = 255;
@@ -220,10 +334,16 @@ void main(void)
 						else if(buttonIndex == 5)
 						{
 							//slid all  the way up the - switch modes
-							write(0x1F); //indicate visually that we're switching modes
-							_delay_cycles(1000000);
-							SetMode(MODE_CAP_DEMO);
-
+							//write(0x1F); //indicate visually that we're switching modes
+							//_delay_cycles(1000000);
+							//SetMode(MODE_CAP_DEMO);  //TODO:fix for cap demo
+							buttons[0] = 255;
+							buttons[1] = 255;
+							buttons[2] = 255;
+							buttons[3] = 255;
+							buttons[4] = 255;
+							buttons[5] = 255;
+							buttonIndex = 0;
 						}
 						else if(button == lastButton)
 						{
@@ -238,7 +358,6 @@ void main(void)
 					{
 						buttonIndex++;//bump up to index 1
 					}
-
 				}
 				else if((buttonIndex > 0 && buttons[0] == 1 ) || (buttonIndex == 0 && button == 1))//top-down
 				{
@@ -248,7 +367,6 @@ void main(void)
 					{
 						if(!(buttons[buttonIndex - 1] == (button - 1)) && button != lastButton) //they need to be sliding from the bottom up
 						{
-							StartPOV(SelectedPOVMessage);
 							buttons[0] = 255;
 							buttons[1] = 255;
 							buttons[2] = 255;
@@ -260,9 +378,17 @@ void main(void)
 						else if(buttonIndex == 5)
 						{
 							//slid all  the way up the - switch modes
-							write(0x1F); //indicate visually that we're switching modes
-							_delay_cycles(1000000);
-							SetMode(MODE_PROGRAM);
+							//write(0x1F); //indicate visually that we're switching modes
+							//_delay_cycles(1000000);
+							//SetMode(MODE_PROGRAM);    //TODO:fix for cap demo
+							buttons[0] = 255;
+							buttons[1] = 255;
+							buttons[2] = 255;
+							buttons[3] = 255;
+							buttons[4] = 255;
+							buttons[5] = 255;
+							buttonIndex = 0;
+							StartPOV(SelectedPOVMessage);
 						}
 						else if(button == lastButton)
 						{
@@ -278,64 +404,19 @@ void main(void)
 						buttonIndex++;//bump up to index 1
 					}
 				}
+
+				lastButton = button;
 			}
-			lastButton = button;
+
+
+			sleep(DELAY);
 		}
-		if(mode == MODE_POV)
-		{
-			if(povActive == 1)
-				_BIS_SR(LPM0_bits + GIE);
-			else
-				sleep(DELAY);
-		}
-
-	}
-	else if(mode == MODE_CAP_DEMO)
-	{
-		ReadCapTouch();
-		if(position == ILLEGAL_SLIDER_WHEEL_POSITION)
-			{
-				//Turn Off LEDs
-				write(0x00);
-				//__no_operation();
-				sleep(DELAY);
-			}
-			else
-			{
-
-		        // Process position
-				if(oldPosition == ILLEGAL_SLIDER_WHEEL_POSITION)
-				{
-					__no_operation();
-				}
-				else
-				{
-					position = (oldPosition+position)/2;
-					// Update LEDs
-					// Flame effect based on position on Cap Touch pads
-					switch (BIT4>>(position/50))
-					{
-						 case 0: write(0); break;
-						 case BIT0: write(BIT0); break;
-						 case BIT1: write(BIT0|BIT1); break;
-						 case BIT2: write(BIT0|BIT1|BIT2); break;
-						 case BIT3: write(BIT0|BIT1|BIT2|BIT3); break;
-						 case BIT4: write(BIT0|BIT1|BIT2|BIT3|BIT4); break;
-						 default:break;
-					}
-				}
-
-
-		        sleep(DELAY);
-				//LPM3;
-			}
-			oldPosition = position;
+		oldPosition = position;
 	}
 	else if(mode == MODE_PROGRAM)
 	{
 		_BIS_SR(LPM0_bits + GIE);
 	}
-	#endif
   }
 } // End Main
 
