@@ -23,7 +23,7 @@
 			.whiteBack {
 				background-color:white;
 			}
-		    #btnTransmit
+		    #btnTransmit, #btnStop
 		    {
                 width:100px;
                 height:100px;
@@ -83,9 +83,14 @@
 				}
 			}
 			
+			function stopTransmit()
+			{
+				transmitting = 0;
+			}
+			
 			function sendData()
 			{
-			    if (arrayIdx < transmitString.length)
+			    if (arrayIdx < transmitString.length && transmitting == 1)
 				{
 					setTimeout("toggleClock()",timeout);
 					setTimeout("toggleClock()",timeout*2);
@@ -225,6 +230,7 @@
                 <div class="dataDiv">Data</div>
                 <div class="clockDiv">Clock</div>
                 <input type="button" id="btnTransmit" onclick="javascript: runTransmit();" value="Transmit" />
+				<input type="button" id="btnStop" onclick="javascript: stopTransmit();" value="Stop" />
             </div>
         </div>
         <div><br /><br /><input type="button" id="btnTest" onclick="javascript: toBinary();" value="Test" />
