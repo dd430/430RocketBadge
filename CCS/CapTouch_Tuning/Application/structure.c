@@ -19,51 +19,51 @@
 
 const struct Element elementL = {
 
-	.inputPxselRegister = (unsigned char *)&P2SEL,
-	.inputPxsel2Register = (unsigned char *)&P2SEL2,
-	.inputBits = BIT0,
-	.maxResponse = 530,
-	.threshold = 10
+	.inputPxselRegister = (unsigned char *)&P1SEL,
+	.inputPxsel2Register = (unsigned char *)&P1SEL2,
+	.inputBits = BIT4,
+	.maxResponse = 595,
+	.threshold = 25
 };
 const struct Element elementA = {
 
-	.inputPxselRegister = (unsigned char *)&P2SEL,
-	.inputPxsel2Register = (unsigned char *)&P2SEL2,
-	.inputBits = BIT1,
-	.maxResponse = 570,
-	.threshold = 10
+	.inputPxselRegister = (unsigned char *)&P1SEL,
+	.inputPxsel2Register = (unsigned char *)&P1SEL2,
+	.inputBits = BIT5,
+	.maxResponse = 601,
+	.threshold = 25
 };
 const struct Element elementU = {
 
-	.inputPxselRegister = (unsigned char *)&P2SEL,
-	.inputPxsel2Register = (unsigned char *)&P2SEL2,
-	.inputBits = BIT2,
-	.maxResponse = 510,
-	.threshold = 10
+	.inputPxselRegister = (unsigned char *)&P1SEL,
+	.inputPxsel2Register = (unsigned char *)&P1SEL2,
+	.inputBits = BIT6,
+	.maxResponse = 641,
+	.threshold = 25
 };
 const struct Element elementN = {
 
-	.inputPxselRegister = (unsigned char *)&P2SEL,
-	.inputPxsel2Register = (unsigned char *)&P2SEL2,
-	.inputBits = BIT3,
-	.maxResponse = 610,
-	.threshold = 10
+	.inputPxselRegister = (unsigned char *)&P1SEL,
+	.inputPxsel2Register = (unsigned char *)&P1SEL2,
+	.inputBits = BIT7,
+	.maxResponse = 605,
+	.threshold = 25
 };
 const struct Element elementC = {
 
 	.inputPxselRegister = (unsigned char *)&P2SEL,
 	.inputPxsel2Register = (unsigned char *)&P2SEL2,
-	.inputBits = BIT4,
-	.maxResponse = 570,
-	.threshold = 10
+	.inputBits = BIT5,
+	.maxResponse = 609,
+	.threshold = 25
 };
 const struct Element elementH = {
 
 	.inputPxselRegister = (unsigned char *)&P2SEL,
 	.inputPxsel2Register = (unsigned char *)&P2SEL2,
-	.inputBits = BIT5,
-	.maxResponse = 475,
-	.threshold = 10
+	.inputBits = BIT6,
+	.maxResponse = 235,
+	.threshold = 25
 };
 
 //*** Sensor   *******************************************************/
@@ -83,9 +83,9 @@ const struct Sensor slider =
                   .arrayPtr[3] = &elementU,
                   .arrayPtr[4] = &elementA,
                   .arrayPtr[5] = &elementL,
-                  .points = 254,
+                  .points = 80,
                   .sensorThreshold = 15,
                   // Timer Information
                   .measGateSource= GATE_WDT_SMCLK,     //  0->SMCLK, 1-> ACLK
-                  .accumulationCycles= WDTp_GATE_64             //512
+                  .accumulationCycles= WDTp_GATE_512             //512
                };

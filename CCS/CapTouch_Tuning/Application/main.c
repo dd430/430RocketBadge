@@ -8,16 +8,8 @@
 //                         MSP430G2553
 //                      +---------------+
 //                      |
-//             C--------|P2.0
-//           C----------|P2.1
-//               C------|P2.2
-//             C--------|P2.3
-//           C----------|P2.4
-//           C----------|P2.5
-//
-//             LED1-----|P1.5
-//             LED2-----|P1.7
-//             LED3-----|P2.6
+//                    LEDs P2.0-P2.4
+//                    Touch P1.4-1.7, P2.5-2.6
 // 
 //        The WDT+ interval represents the measurement window.  The number of 
 //        counts within the TA0R that have accumulated during the measurement
@@ -41,7 +33,23 @@ uint16_t dCnt[6];
 #endif
 
 uint16_t position, oldPosition;
-uint8_t onState, blState;
+const uint16_t p2[5] =
+{
+    0x0010,
+    0x0008,
+    0x0004,
+    0x0002,
+    0x0001
+};
+
+const uint16_t mask[5] =
+{
+    0x0000,
+    0x0010,
+    0x0020,
+    0x0030,
+    0x0040
+};
 
 // Sleep Function
 // Configures Timer A to run off ACLK, count in UP mode, places the CPU in LPM3 
@@ -59,11 +67,13 @@ void sleep(unsigned int time)
 // Main Function
 void main(void)
 { 
+  uint8_t i;
+
   WDTCTL = WDTPW + WDTHOLD;             // Stop watchdog timer
   BCSCTL1 = CALBC1_1MHZ;                // Set DCO to 1, 8, 12 or 16MHz
   DCOCTL = CALDCO_1MHZ;
   BCSCTL1 |= DIVA_0;                    // ACLK/1 [ACLK/(0:1,1:2,2:4,3:8)]
-  BCSCTL2 |= DIVS_3;                    // SMCLK/8 [SMCLK/(0:1,1:2,2:4,3:8)]
+  // BCSCTL2 |= DIVS_3;                    // SMCLK/8 [SMCLK/(0:1,1:2,2:4,3:8)]
   BCSCTL3 |= LFXT1S_2;                  // LFXT1 = VLO Clock Source
   
   P1OUT = 0x00;							// Drive all Port 1 pins low
@@ -79,6 +89,22 @@ void main(void)
   // Update baseline measurement (Average 5 measurements)
   TI_CAPT_Update_Baseline(&slider,5);
 
+  P2OUT |= BIT0;
+  sleep(DELAY*2);
+  P2OUT |= BIT1;
+  sleep(DELAY);
+  P2OUT |= BIT2;
+  sleep(DELAY*2);
+  P2OUT |= BIT3;
+  sleep(DELAY);
+  P2OUT |= BIT4;
+  sleep(DELAY*2);
+  sleep(DELAY*2);
+  sleep(DELAY*2);
+  sleep(DELAY*2);
+
+  P2OUT =0;
+  P3OUT = 0;
   // Main loop starts here
   while (1)
   {
@@ -91,7 +117,7 @@ void main(void)
 	
 	
 	#ifndef ELEMENT_CHARACTERIZATION_MODE
-
+	P2OUT =0;
 	position = TI_CAPT_Slider(&slider);
 	__no_operation();
 
@@ -111,6 +137,13 @@ void main(void)
 		{
 			position = (oldPosition+position)/2;
 			/* Update LEDs */
+			for(i=0;i<5;i++)
+			{
+			    if((position & 0x0070) == mask[i])
+			    {
+			    	P2OUT = p2[i];
+			    }
+			}
 		}
         sleep(DELAY);
 	}
